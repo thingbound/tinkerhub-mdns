@@ -1,0 +1,22 @@
+{
+  "name": "tinkerhub-mdns",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Tracking of devices that announce via mDNS and DNS-SD",
+  "repository": "tinkerhub/tinkerhub-mdns",
+  "main": "lib/index.js",
+  "keywords": [
+    "ssdp"
+  ],
+  "scripts": {
+    "prepublish": "node_modules/.bin/eslint lib",
+    "test": "node_modules/.bin/eslint lib"
+  },
+  "dependencies": {
+    "bonjour": "^3.5.0"
+  },
+  "devDependencies": {
+    "eslint": "^3.11.1",
+    "eslint-plugin-node": "^3.0.5"
+  }
+}
