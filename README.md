@@ -1,6 +1,6 @@
 # mDNS browser
 
-This library provides discovery of devices using mDNS and DNS-SD.
+This library provides discovery of services using mDNS and DNS-SD.
 
 ```javascript
 const browser = require('tinkerhub-mdns')

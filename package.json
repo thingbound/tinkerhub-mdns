@@ -6,14 +6,18 @@
   "repository": "tinkerhub/tinkerhub-mdns",
   "main": "lib/index.js",
   "keywords": [
-    "ssdp"
+    "mdns",
+    "dns-sd",
+    "discovery",
+    "service discovery"
   ],
   "scripts": {
     "prepublish": "node_modules/.bin/eslint lib",
     "test": "node_modules/.bin/eslint lib"
   },
   "dependencies": {
-    "bonjour": "^3.5.0"
+    "bonjour": "^3.5.0",
+    "tinkerhub-discovery": "^0.2.0"
   },
   "devDependencies": {
     "eslint": "^3.11.1",
