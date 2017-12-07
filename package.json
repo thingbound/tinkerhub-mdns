@@ -1,6 +1,6 @@
 {
   "name": "tinkerhub-mdns",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "description": "Tracking of devices that announce via mDNS and DNS-SD",
   "repository": "tinkerhub/tinkerhub-mdns",
