@@ -2,9 +2,8 @@
   "name": "tinkerhub-mdns",
   "version": "0.3.2",
   "license": "MIT",
-  "description": "Tracking of devices that announce via mDNS and DNS-SD",
+  "description": "Discovery and publishing of services that announce via mDNS and DNS-SD",
   "repository": "tinkerhub/tinkerhub-mdns",
-  "main": "lib/index.js",
   "keywords": [
     "mdns",
     "dns-sd",
@@ -13,19 +12,37 @@
     "discovery",
     "service discovery"
   ],
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/types/index.d.ts",
   "scripts": {
-    "prepublish": "node_modules/.bin/eslint lib",
-    "test": "node_modules/.bin/eslint lib"
+    "test": "jest",
+    "ci": "npm run coverage && npm run lint",
+    "coverage": "jest --coverage",
+    "lint": "tslint  --project tsconfig.json -t codeFrame 'src/**/*.ts' 'test/**/*.ts'",
+    "build": "tsc --module commonjs --target es5 --outDir dist/cjs",
+    "prebuild": "rimraf dist",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "debug": "^3.1.0",
-    "dns-txt": "^2.0.2",
-    "multicast-dns": "^6.2.0",
+    "atvik": "^0.3.1",
+    "debug": "^4.1.1",
+    "fast-deep-equal": "^2.0.1",
+    "multicast-dns": "^7.2.0",
     "multicast-dns-service-types": "^1.1.0",
-    "tinkerhub-discovery": "^0.3.0"
+    "timer-wheel": "^0.1.1",
+    "tinkerhub-discovery": "^0.3.1"
   },
   "devDependencies": {
-    "eslint": "^3.11.1",
-    "eslint-plugin-node": "^3.0.5"
+    "@types/debug": "^4.1.4",
+    "@types/jest": "^24.0.15",
+    "@types/node": "^8.0.0",
+    "coveralls": "^3.0.3",
+    "jest": "^24.8.0",
+    "jest-config": "^24.8.0",
+    "rimraf": "^2.6.3",
+    "ts-jest": "^24.0.2",
+    "ts-node": "^8.3.0",
+    "tslint": "^5.18.0",
+    "typescript": "^3.5.3"
   }
 }
