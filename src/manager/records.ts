@@ -24,23 +24,41 @@ export abstract class Record {
 	public abstract readonly type: string;
 
 	private readonly expireEvent: Event<Record>;
+	private readonly refreshEvent: Event<Record>;
 
 	public readonly name: string;
 	public readonly class: string;
 
+	public lastRefresh: number;
+	public ttl?: number;
+
 	constructor(answer: Answer) {
 		this.name = answer.name || '';
 		this.class = answer.class;
+		this.ttl = answer.ttl;
+		this.lastRefresh = Date.now();
 
 		this.expireEvent = new Event<Record>(this);
+		this.refreshEvent = new Event<Record>(this);
 	}
 
 	public destroy() {
 		this.expireEvent.emit();
 	}
 
+	public refresh(ttl: number) {
+		this.ttl = ttl;
+		this.lastRefresh = Date.now();
+
+		this.refreshEvent.emit();
+	}
+
 	get onExpire(): Subscribable<Record> {
 		return this.expireEvent.subscribable;
+	}
+
+	get onRefresh(): Subscribable<Record> {
+		return this.refreshEvent.subscribable;
 	}
 
 	public isEqual(other: Record) {

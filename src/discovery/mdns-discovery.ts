@@ -5,16 +5,34 @@ import { stringify, parse } from 'multicast-dns-service-types';
 import { MDNSService } from '../service';
 import { Protocol } from '../protocol';
 
-import { createMDNS, MDNS, MDNSResponse, PTRRecord, SRVRecord, ARecord, AAAARecord, TXTRecord } from '../manager';
+import { createMDNS, MDNS, MDNSResponse, PTRRecord, SRVRecord, ARecord, AAAARecord, TXTRecord, MDNSQuery, Record } from '../manager';
 import { ServiceData } from './service-data';
 import { RecordHandle } from './record-handle';
 import { RecordArray } from './record-array';
+import { TTLRefreshHelper } from './ttl-refresh-helper';
 
+// Minimum delay in ms before starting another search
+const SEARCH_MIN_DELAY = 1000;
+// Maximum delay in ms between searches
+const SEARCH_MAX_DELAY = 60 * 60 * 1000;
+// Factor to multiply delay with after every search
+const SEARCH_DELAY_FACTOR = 3;
+
+/** Internal type used to merge A and AAAA records */
 type RecordWithIP = ARecord | AAAARecord;
 
+/**
+ * Options available for the discovery.
+ */
 export interface MDNSDiscoveryOptions {
+	/**
+	 * The type of service to look for.
+	 */
 	type: string;
 
+	/**
+	 * The protocol of the service.
+	 */
 	protocol?: Protocol;
 }
 
@@ -23,7 +41,6 @@ export interface MDNSDiscoveryOptions {
  * network.
  */
 // TODO: Expose type, protocol and subtypes?
-// TODO: Slight chance that address records get several listeners
 export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 	private readonly searchName: string;
 	private readonly normalizedSearchName: string;
@@ -31,7 +48,11 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 	private readonly mdns: MDNS;
 	private readonly serviceData: Map<string, ServiceData>;
 
-	private readonly searchInterval: any;
+	private searchTimeout: any;
+	private searchTime: number;
+	private searchLastInvoke: number;
+
+	private readonly ttlRefreshHelper: TTLRefreshHelper;
 	private readonly queuedRefreshes: Set<string>;
 
 	constructor(
@@ -41,35 +62,123 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 
 		this.serviceData = new Map();
 		this.queuedRefreshes = new Set();
+		this.ttlRefreshHelper = new TTLRefreshHelper(() => this.search(false));
 
 		this.searchName = stringify(options.type, options.protocol || 'tcp') + '.local';
 		this.normalizedSearchName = normalizeName(this.searchName);
 
 		this.mdns = createMDNS();
 		this.mdns.onResponse(this.handleResponse.bind(this));
+		this.mdns.onQuery(this.handleQuery.bind(this));
 
-		this.searchInterval = setInterval(() => {
-			this.debug('Searching for services');
-			try {
-				this.search();
-			} catch(ex) {
-				this.logAndEmitError(ex, 'Caught error during search');
-			}
-		}, 30 * 60 * 1000);
+		// Select an initial search delay between 20 and 120 ms
+		const initialDelay = 20 + Math.random() * 100;
 
-		this.search();
+		// Queue the initial search
+		this.searchTime = 0;
+		this.searchLastInvoke = 0;
+		this.searchTimeout = setTimeout(() => this.search(true), initialDelay);
 	}
 
 	public destroy() {
-		clearInterval(this.searchInterval);
+		clearTimeout(this.searchTimeout);
 
 		super.destroy();
 
+		this.ttlRefreshHelper.destroy();
 		this.mdns.destroy();
 	}
 
-	protected search() {
-		this.mdns.query(this.searchName, 'PTR');
+	/**
+	 * Perform a search for services on the network. This function will send
+	 * a query out which will cause responders to send back their records.
+	 *
+	 * Search is called:
+	 * 1) Periodically, with increasing query times, up to an hour of delay
+	 * 2) When records are nearing expiration
+	 */
+	private search(periodical: boolean) {
+		const now = Date.now();
+
+		if(periodical) {
+			this.debug('Searching for services on schedule');
+		} else {
+			// Check that we're not performing a non-periodical search too quickly
+			if(now - this.searchLastInvoke < SEARCH_MIN_DELAY) return;
+
+			this.debug('Searching for services due to near-end TTL');
+		}
+
+		this.searchLastInvoke = now;
+		try {
+			this.mdns.query(this.searchName, 'PTR');
+		} catch(ex) {
+			this.logAndEmitError(ex, 'Caught error during search');
+		}
+
+		if(periodical) {
+			// Periodical searches increase the delay time
+
+			if(this.searchTime === 0) {
+				// Next search is for the minimum delay
+				this.searchTime = SEARCH_MIN_DELAY;
+			} else {
+				// Increase the delay until max is reached
+				this.searchTime = Math.min(this.searchTime * SEARCH_DELAY_FACTOR, SEARCH_MAX_DELAY);
+			}
+		}
+
+		// Reschedule searching
+		this.rescheduleSearch();
+	}
+
+	/**
+	 * Reschedule when the search is next performed.
+	 */
+	private rescheduleSearch() {
+		clearTimeout(this.searchTimeout);
+		this.searchTimeout = setTimeout(() => this.search(true), this.searchTime);
+	}
+
+	/**
+	 * Handle incoming queries. Used to reschedule searches if another client
+	 * on the network is seen querying for the same service as us.
+	 *
+	 * @param query
+	 */
+	private handleQuery(query: MDNSQuery) {
+		if(this.isSameQuery(query)) {
+			/*
+			 * This query is the same we would send, reschedule our next
+			 * search if our last search was more than 500 ms ago. This
+			 * avoid us rescheduling after our own query.
+			 */
+			if(Date.now() - this.searchLastInvoke > 500) {
+				this.debug('Rescheduling search due to incoming query');
+				this.rescheduleSearch();
+			}
+		}
+	}
+
+	private isSameQuery(query: MDNSQuery): boolean {
+		for(const q of query.questions) {
+			if(q.type === 'PTR' && normalizeName(q.name) === this.normalizedSearchName) {
+				// Check that all the answers have been seen by us
+				if(query.answers) {
+					for(const answer of query.answers) {
+						const record = this.mdns.find(item => item.isEqual(answer));
+						if(! record) {
+							// This is a record we haven't seen
+							return false;
+						}
+					}
+				}
+
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private isMatching(PTR: PTRRecord) {
@@ -81,15 +190,15 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 		for(const record of response.mergedRecords) {
 			if(record instanceof PTRRecord && this.isMatching(record)) {
 				/*
-				* This PTR is what we're looking for. Next step is to
-				* check if we already have it stored.
+				* This PTR is what we're looking for. Queue a refresh of the
+				* service.
 				*/
 				if(this.queuedRefreshes.has(record.hostname)) {
 					continue;
 				}
 
 				this.queuedRefreshes.add(record.hostname);
-				setTimeout(() => this.refreshService(record.hostname), 1000);
+				setTimeout(() => this.refreshService(record.hostname), 500);
 			}
 		}
 	}
@@ -113,17 +222,32 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 				if(this.queuedRefreshes.has(name)) return;
 
 				this.queuedRefreshes.add(name);
-				setTimeout(() => this.refreshService(name), 1000);
+				setTimeout(() => this.refreshService(name), 500);
+			};
+
+			const onSet = (record: Record) => {
+				/*
+				 * When a record becomes active, listen for it being expired
+				 * and add it to the refresh helper.
+				 */
+				record.onExpire(refreshThis);
+				this.ttlRefreshHelper.add(record);
+			};
+
+			const onRemove = (record: Record) => {
+				// Remove old records from refresh listeners
+				record.onExpire.unsubscribe(refreshThis);
+				this.ttlRefreshHelper.remove(record);
 			};
 
 			data = {
-				PTR: new RecordHandle(refreshThis),
-				SRV: new RecordHandle(refreshThis),
+				PTR: new RecordHandle<PTRRecord>(onSet, onRemove),
+				SRV: new RecordHandle<SRVRecord>(onSet, onRemove),
 				addressRecords: new RecordArray(refreshThis),
 				txtRecords: new RecordArray(refreshThis)
 			};
 
-			data.PTR.record = PTR;
+			data.PTR.update(PTR);
 
 			// Store the service data for next refresh
 			this.serviceData.set(name, data);
@@ -131,12 +255,12 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 			if(data.PTR.record !== PTR) {
 				// The PTR record has changed
 				this.debug('Updating', name, 'with new PTR');
-				data.PTR.record = PTR;
+				data.PTR.update(PTR);
 			}
 		} else {
 			// PTR has expired
 			this.debug('Removing', name, 'due to no PTR');
-			this.invalidateService(name);
+			this.invalidateService(name, data);
 			return;
 		}
 
@@ -145,12 +269,12 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 			if(data.SRV.record !== SRV) {
 				// This is a new SRV record - update our record
 				this.debug('Updating', name, 'with new SRV');
-				data.SRV.record = SRV;
+				data.SRV.update(SRV);
 			}
 		} else {
 			// No SRV - invalidate the service
 			this.debug('Removing', name, 'due to no SRV');
-			this.invalidateService(name);
+			this.invalidateService(name, data);
 			return;
 		}
 
@@ -165,7 +289,7 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 
 		if(records.length === 0) {
 			this.debug('Removing', name, 'due to no addresses available');
-			this.invalidateService(name);
+			this.invalidateService(name, data);
 			return;
 		}
 
@@ -203,7 +327,10 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 		this.updateService(service);
 	}
 
-	private invalidateService(name: string) {
+	private invalidateService(name: string, data: ServiceData) {
+		data.PTR.update(null);
+		data.SRV.update(null);
+
 		this.removeService(name);
 		this.serviceData.delete(name);
 	}

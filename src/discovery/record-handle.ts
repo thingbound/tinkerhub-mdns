@@ -1,34 +1,34 @@
-import { SubscriptionHandle } from 'atvik';
 import { Record } from '../manager';
 
 /**
- * Helper class for keeping a handle to a record. Will subscribe/unsubscribe
- * the refresher function when the value changes.
+ * Helper class for keeping a handle to a record.
  */
 export class RecordHandle<T extends Record> {
-	private refresher: () => void;
-	private _record?: T;
-	private handle?: SubscriptionHandle;
+	private readonly onSet: (record: T) => void;
+	private readonly onRemove: (record: T) => void;
 
-	constructor(refresher: () => void) {
-		this.refresher = refresher;
+	private _record?: T;
+
+	constructor(onSet: (record: T) => void, onRemove: (record: T) => void) {
+		this.onSet = onSet;
+		this.onRemove = onRemove;
 	}
 
 	get record(): T | null {
 		return this._record || null;
 	}
 
-	set record(v: T | null) {
+	public update(v: T | null): void {
 		if(this._record === v) return;
 
-		if(this._record && this.handle) {
-			this.handle.unsubscribe();
+		if(this._record) {
+			this.onRemove(this._record);
 		}
 
 		this._record = v || undefined;
 
 		if(v) {
-			this.handle = v.onExpire(this.refresher);
+			this.onSet(v);
 		}
 	}
 }
