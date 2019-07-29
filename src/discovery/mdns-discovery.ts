@@ -313,9 +313,23 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 			}
 		}
 
+		// Extract the local name and parse the service
+		// TODO: Replace multicast-dns-service-types at some point
+		const idx = name.indexOf('.');
+		const localName = name.substring(0, idx);
+		const parsedService = parse(name.substring(idx + 1, name.length - 6));
+
 		// Map the final service data and add/update service
 		const service: MDNSService = {
 			id: name,
+
+			name: localName,
+
+			type: parsedService.name || 'unknown',
+
+			protocol: parsedService.protocol as Protocol,
+
+			subtypes: parsedService.subtypes || [],
 
 			addresses: addresses,
 
