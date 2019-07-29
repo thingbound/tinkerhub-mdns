@@ -62,7 +62,7 @@ export abstract class Record {
 	}
 
 	public isEqual(other: Record) {
-		if(other.constructor !== this.constructor) {
+		if(other.type !== this.type) {
 			return false;
 		}
 
