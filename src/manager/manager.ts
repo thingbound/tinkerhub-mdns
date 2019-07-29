@@ -38,6 +38,7 @@ export class Manager {
 	private removeRecord(record: Record) {
 		const idx = this.records.findIndex(item => item === record);
 		if(idx >= 0) {
+			this.recordExpirer.unschedule(record);
 			this.records.splice(idx, 1);
 			record.destroy();
 			debug('REMOVED', record.type, record.name, ' total=', this.records.length);
