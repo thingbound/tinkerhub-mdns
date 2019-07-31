@@ -110,11 +110,8 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 		}
 
 		this.searchLastInvoke = now;
-		try {
-			this.mdns.query(this.searchName, 'PTR');
-		} catch(ex) {
-			this.logAndEmitError(ex, 'Caught error during search');
-		}
+		this.mdns.query(this.searchName, 'PTR')
+			.catch(err => this.logAndEmitError(err, 'Caught error during search'));
 
 		if(periodical) {
 			// Periodical searches increase the delay time

@@ -33,7 +33,8 @@ export class MDNS {
 	}
 
 	public query(name: string, type: string) {
-		this.manager.query(name, type);
+		return this.manager.query(name, type);
+	}
 	}
 
 	public destroy() {

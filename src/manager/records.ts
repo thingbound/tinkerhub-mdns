@@ -28,13 +28,15 @@ export abstract class Record {
 
 	public readonly name: string;
 	public readonly class: string;
+	public readonly flush: boolean;
 
 	public lastRefresh: number;
 	public ttl?: number;
 
 	constructor(answer: Answer) {
 		this.name = answer.name || '';
-		this.class = answer.class;
+		this.class = answer.class || 'IN';
+		this.flush = answer.flush || false;
 		this.ttl = answer.ttl;
 		this.lastRefresh = Date.now();
 

@@ -154,7 +154,29 @@ export class Manager {
 			throw new Error('No mDNS instance available');
 		}
 
-		this.mdns.query(name, type);
+		const query = {
+			questions: [{
+				name: name,
+				type: type,
+				class: 'IN'
+			}]
+		};
+
+		return new Promise((resolve, reject) => {
+			if(! this.mdns) {
+				reject(new Error('No mDNS instance available'));
+				return;
+			}
+
+			this.mdns.query(query, (err) => {
+				if(err) {
+					reject(err);
+				}
+
+				resolve();
+			});
+		});
+	}
 	}
 
 	public find(predicate: (record: Record) => boolean): Record | undefined {

@@ -20,10 +20,14 @@ declare module 'multicast-dns' {
 		on(event: 'response', listener: (packet: Packet, rinfo: AddressInfo) => void): void;
 
 		query(packet: Packet): void;
-		query(question: Question): void;
-		query(name: string, type: string): void;
+		query(packet: Packet, rinfo: AddressInfo): void;
+		query(packet: Packet, rinfo: AddressInfo, callback: (err: Error) => void): void;
+		query(packet: Packet, callback: (err: Error) => void): void;
+
 		respond(packet: Packet): void;
-		respond(answer: Answer): void;
+		respond(packet: Packet, rinfo: AddressInfo): void;
+		respond(packet: Packet, rinfo: AddressInfo, callback: (err: Error) => void): void;
+		respond(packet: Packet, callback: (err: Error) => void): void;
 
 		destroy(): void;
 	}
@@ -39,15 +43,15 @@ declare module 'multicast-dns' {
 	export interface Question {
 		name: string;
 		type: string;
-		class: number;
+		class: string;
 	}
 
 	export interface Answer {
 		name?: string;
 		type: string;
-		class: string;
+		class?: string;
 		ttl?: number;
-		flush: boolean;
+		flush?: boolean;
 		data: any;
 	}
 }
