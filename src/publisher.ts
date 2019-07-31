@@ -31,7 +31,7 @@ export interface MDNSServicePublisherOptions {
 	/**
 	 * Protocol used by the service.
 	 */
-	protocol: Protocol;
+	protocol?: Protocol;
 
 	/**
 	 * Sub-types of the service.
@@ -85,7 +85,7 @@ export class MDNSServicePublisher extends AbstractServicePublisher {
 
 		this.name = options.name || randomId();
 		this.port = options.port;
-		this.type = stringify(options.type, options.protocol, options.subtypes) + LOCAL;
+		this.type = stringify(options.type, options.protocol || 'tcp', options.subtypes) + LOCAL;
 
 		this.qualifiedName = this.name + '.' + this.type;
 
