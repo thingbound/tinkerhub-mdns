@@ -49,20 +49,22 @@ export class Manager {
 		if(answer.flush) {
 			/*
 			* Flush indicates that the cache should flush records with the
-			* same type, class and name.
+			* same type, class and name that are older than a second.
 			*/
 			let count = 0;
 
-			this.records.forEach(item => {
+			const oneSecondAgo = Date.now() - 1000;
+			for(const item of this.records) {
 				if(item.type === answer.type
 					&& item.class === answer.class
-					&& item.name === answer.name)
+					&& item.name === answer.name
+					&& item.lastRefresh < oneSecondAgo)
 				{
 					this.scheduleRemoval(item, 0);
 
 					count++;
 				}
-			});
+			}
 
 			debug('FLUSH', answer.type, answer.class, answer.name, 'records=', count);
 		}
