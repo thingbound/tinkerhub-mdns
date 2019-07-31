@@ -80,13 +80,13 @@ export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
 		this.searchTimeout = setTimeout(() => this.search(true), initialDelay);
 	}
 
-	public destroy() {
+	public async destroy(): Promise<void> {
 		clearTimeout(this.searchTimeout);
-
-		super.destroy();
 
 		this.ttlRefreshHelper.destroy();
 		this.mdns.destroy();
+
+		await super.destroy();
 	}
 
 	/**
