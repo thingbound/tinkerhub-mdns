@@ -3,6 +3,8 @@ import fastDeepEqual from 'fast-deep-equal';
 import { decodeTXT } from './txt';
 import { Event, Subscribable } from 'atvik';
 
+export type AnswerWithoutType = Omit<Answer, 'type'>;
+
 export function mapAnswer(answer: Answer): Record {
 	switch(answer.type) {
 		case 'A':
@@ -33,7 +35,7 @@ export abstract class Record {
 	public lastRefresh: number;
 	public ttl?: number;
 
-	constructor(answer: Answer) {
+	constructor(answer: AnswerWithoutType) {
 		this.name = answer.name || '';
 		this.class = answer.class || 'IN';
 		this.flush = answer.flush || false;
@@ -76,6 +78,19 @@ export abstract class Record {
 	}
 
 	protected abstract isDataEqual(other: this): boolean;
+
+	public toAnswer(): Answer {
+		return {
+			type: this.type,
+			name: this.name,
+			ttl: this.ttl,
+			class: this.class,
+			flush: this.flush,
+			data: this.toData()
+		};
+	}
+
+	protected abstract toData(): any;
 }
 
 export class ARecord extends Record {
@@ -83,7 +98,7 @@ export class ARecord extends Record {
 
 	public readonly ip: string;
 
-	constructor(answer: Answer) {
+	constructor(answer: AnswerWithoutType) {
 		super(answer);
 
 		this.ip = answer.data;
@@ -91,6 +106,10 @@ export class ARecord extends Record {
 
 	protected isDataEqual(other: this) {
 		return this.ip === other.ip;
+	}
+
+	protected toData() {
+		return this.ip;
 	}
 }
 
@@ -99,7 +118,7 @@ export class AAAARecord extends Record {
 
 	public readonly ip: string;
 
-	constructor(answer: Answer) {
+	constructor(answer: AnswerWithoutType) {
 		super(answer);
 
 		this.ip = answer.data;
@@ -107,6 +126,10 @@ export class AAAARecord extends Record {
 
 	protected isDataEqual(other: this) {
 		return this.ip === other.ip;
+	}
+
+	protected toData() {
+		return this.ip;
 	}
 }
 
@@ -116,7 +139,7 @@ export class SRVRecord extends Record {
 	public readonly target: string;
 	public readonly port: number;
 
-	constructor(answer: Answer) {
+	constructor(answer: AnswerWithoutType) {
 		super(answer);
 
 		this.target = answer.data.target;
@@ -126,6 +149,13 @@ export class SRVRecord extends Record {
 	protected isDataEqual(other: this) {
 		return this.target === other.target && this.port === other.port;
 	}
+
+	protected toData() {
+		return {
+			target: this.target,
+			port: this.port
+		};
+	}
 }
 
 export class PTRRecord extends Record {
@@ -133,7 +163,7 @@ export class PTRRecord extends Record {
 
 	public readonly hostname: string;
 
-	constructor(answer: Answer) {
+	constructor(answer: AnswerWithoutType) {
 		super(answer);
 
 		this.hostname = answer.data;
@@ -141,6 +171,10 @@ export class PTRRecord extends Record {
 
 	protected isDataEqual(other: this) {
 		return this.hostname === other.hostname;
+	}
+
+	protected toData() {
+		return this.hostname;
 	}
 }
 
@@ -150,21 +184,27 @@ export class TXTRecord extends Record {
 	public readonly data: Map<string, string | boolean>;
 	public readonly binaryData: Buffer[];
 
-	constructor(answer: Answer) {
+	constructor(answer: AnswerWithoutType, decode=true) {
 		super(answer);
 
 		this.binaryData = answer.data;
 		this.data = new Map();
-		for(const b of this.binaryData) {
-			const decoded = decodeTXT(b);
-			if(decoded) {
-				this.data.set(decoded.key, decoded.value);
+		if(decode) {
+			for(const b of this.binaryData) {
+				const decoded = decodeTXT(b);
+				if(decoded) {
+					this.data.set(decoded.key, decoded.value);
+				}
 			}
 		}
 	}
 
 	protected isDataEqual(other: this) {
 		return fastDeepEqual(this.binaryData, this.binaryData);
+	}
+
+	protected toData() {
+		return this.binaryData;
 	}
 }
 
@@ -181,5 +221,9 @@ export class UnknownRecord extends Record {
 
 	protected isDataEqual(other: this) {
 		return fastDeepEqual(this.data, other.data);
+	}
+
+	protected toData() {
+		return this.data;
 	}
 }

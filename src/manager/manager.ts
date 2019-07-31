@@ -177,6 +177,27 @@ export class Manager {
 			});
 		});
 	}
+
+	public respond(answers: Record[], additionals: Record[]) {
+		const packet = {
+			answers: answers.map(r => r.toAnswer()),
+			additionals: additionals.map(r => r.toAnswer())
+		};
+
+		return new Promise((resolve, reject) => {
+			if(! this.mdns) {
+				reject(new Error('No mDNS instance available'));
+				return;
+			}
+
+			this.mdns.respond(packet, (err) => {
+				if(err) {
+					reject(err);
+				}
+
+				resolve();
+			});
+		});
 	}
 
 	public find(predicate: (record: Record) => boolean): Record | undefined {

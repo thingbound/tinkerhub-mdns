@@ -35,6 +35,9 @@ export class MDNS {
 	public query(name: string, type: string) {
 		return this.manager.query(name, type);
 	}
+
+	public respond(answers: Record[], additionals: Record[]=[]) {
+		return this.manager.respond(answers, additionals);
 	}
 
 	public destroy() {
