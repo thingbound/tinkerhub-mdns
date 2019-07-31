@@ -69,7 +69,7 @@ export class Manager {
 			debug('FLUSH', answer.type, answer.class, answer.name, 'records=', count);
 		}
 
-		if(! answer.ttl) return null;
+		if(typeof answer.ttl !== 'number') return null;
 
 		const record = mapAnswer(answer);
 		const previous = this.records.find(item => item.isEqual(record));
