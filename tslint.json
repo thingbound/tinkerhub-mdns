@@ -75,7 +75,6 @@
 		"radix": true,
 		"triple-equals": { "options": [ "allow-null-check" ] },
 		"typedef": false,
-		"unified-signatures": true,
 		"use-isnan": true
 	}
 }

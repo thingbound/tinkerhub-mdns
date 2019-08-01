@@ -16,7 +16,7 @@
   "types": "./dist/types/index.d.ts",
   "scripts": {
     "test": "jest",
-    "ci": "npm run coverage && npm run lint",
+    "ci": "npm run lint",
     "coverage": "jest --coverage",
     "lint": "tslint  --project tsconfig.json -t codeFrame 'src/**/*.ts' 'test/**/*.ts'",
     "build": "tsc --module commonjs --target es5 --outDir dist/cjs",
