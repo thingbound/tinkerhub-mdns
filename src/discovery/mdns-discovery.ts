@@ -41,7 +41,7 @@ export interface MDNSDiscoveryOptions {
  * network.
  */
 // TODO: Expose type, protocol and subtypes?
-export class MDNSDiscovery extends BasicServiceDiscovery<MDNSService> {
+export class MDNSServiceDiscovery extends BasicServiceDiscovery<MDNSService> {
 	private readonly searchName: string;
 	private readonly normalizedSearchName: string;
 

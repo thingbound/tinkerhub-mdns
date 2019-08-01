@@ -12,9 +12,9 @@ npm install tinkerhub-mdns
 Example:
 
 ```javascript
-const { MDNSDiscovery } = require('tinkerhub-mdns');
+const { MDNSServiceDiscovery } = require('tinkerhub-mdns');
 
-const discovery = new MDNSDiscovery({
+const discovery = new MDNSServiceDiscovery({
   type: 'spotify-connect'
 });
 
