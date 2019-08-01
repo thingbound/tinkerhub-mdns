@@ -1,4 +1,4 @@
-import { HostAndPort, BasicDiscovery } from 'tinkerhub-discovery';
+import { HostAndPort, BasicServiceDiscovery } from 'tinkerhub-discovery';
 
 import { stringify, parse } from 'multicast-dns-service-types';
 
@@ -41,7 +41,7 @@ export interface MDNSDiscoveryOptions {
  * network.
  */
 // TODO: Expose type, protocol and subtypes?
-export class MDNSDiscovery extends BasicDiscovery<MDNSService> {
+export class MDNSDiscovery extends BasicServiceDiscovery<MDNSService> {
 	private readonly searchName: string;
 	private readonly normalizedSearchName: string;
 
