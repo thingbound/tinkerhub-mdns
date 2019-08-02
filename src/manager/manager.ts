@@ -1,10 +1,12 @@
 import { ReschedulingTimerWheel } from 'timer-wheel';
-import multicastDns, { MulticastDNS, Answer } from 'multicast-dns';
+
+import { AbstractTransport } from './transport/abstract-transport';
+import { createTransport } from './transport';
 
 import { MDNS } from './mdns';
 import { MDNSResponse } from './response';
 import { MDNSQuery } from './query';
-import { Record, mapAnswer } from './records';
+import { Record } from './records';
 
 import debugFactory from 'debug';
 const debug = debugFactory('th:mdns:manager');
@@ -14,7 +16,7 @@ const debug = debugFactory('th:mdns:manager');
  * listens for the mDNS broadcasts.
  */
 export class Manager {
-	private mdns?: MulticastDNS;
+	private transport?: AbstractTransport;
 	private instances: MDNS[];
 
 	private records: Record[];
@@ -45,8 +47,8 @@ export class Manager {
 		}
 	}
 
-	private mapRecord(answer: Answer): Record | null {
-		if(answer.flush) {
+	private mapRecord(record: Record): Record {
+		if(record.flush) {
 			/*
 			* Flush indicates that the cache should flush records with the
 			* same type, class and name that are older than a second.
@@ -55,9 +57,9 @@ export class Manager {
 
 			const oneSecondAgo = Date.now() - 1000;
 			for(const item of this.records) {
-				if(item.type === answer.type
-					&& item.class === answer.class
-					&& item.name === answer.name
+				if(item.type === record.type
+					&& item.class === record.class
+					&& item.name === record.name
 					&& item.lastRefresh < oneSecondAgo)
 				{
 					this.scheduleRemoval(item, 0);
@@ -66,29 +68,28 @@ export class Manager {
 				}
 			}
 
-			debug('FLUSH', answer.type, answer.class, answer.name, 'records=', count);
+			debug('FLUSH', record.type, record.class, record.name, 'records=', count);
 		}
 
-		if(typeof answer.ttl !== 'number') return null;
+		if(typeof record.ttl !== 'number') return record;
 
-		const record = mapAnswer(answer);
 		const previous = this.records.find(item => item.isEqual(record));
 		if(previous) {
 			// Already have a previous record with this data, refresh the TTL
-			previous.refresh(answer.ttl);
-			this.scheduleRemoval(previous, answer.ttl);
+			previous.refresh(record.ttl);
+			this.scheduleRemoval(previous, record.ttl);
 
-			debug('REFRESH', answer.type, answer.class, answer.name, 'ttl=', answer.ttl, 'total=', this.records.length);
+			debug('REFRESH', record.type, record.class, record.name, 'ttl=', record.ttl, 'total=', this.records.length);
 
 			return previous;
 		}
 
 		// Register the new record
 		this.records.push(record);
-		this.scheduleRemoval(record, answer.ttl);
+		this.scheduleRemoval(record, record.ttl);
 
 		// Output some useful debug information
-		debug('ADDED', answer.type, answer.class, answer.name, 'ttl=', answer.ttl, 'total=', this.records.length);
+		debug('ADDED', record.type, record.class, record.name, 'ttl=', record.ttl, 'total=', this.records.length);
 
 		return record;
 	}
@@ -104,22 +105,25 @@ export class Manager {
 	}
 
 	private createMulticastDNS() {
-		this.mdns = multicastDns();
-		this.mdns.on('error', err => {
-			for(const instance of this.instances) {
-				instance.receiveError(err);
-			}
-		});
-		this.mdns.on('response', (packet, rinfo) => {
-			const response = new MDNSResponse(packet, rinfo, this.mapRecord);
-			for(const instance of this.instances) {
-				instance.receiveResponse(response);
-			}
-		});
-		this.mdns.on('query', (packet, rinfo) => {
-			const query = new MDNSQuery(packet, rinfo, this.mapRecord);
-			for(const instance of this.instances) {
-				instance.receiveQuery(query);
+		this.transport = createTransport({
+			mapRecord: record => this.mapRecord(record),
+
+			onError: err => {
+				for(const instance of this.instances) {
+					instance.receiveError(err);
+				}
+			},
+
+			onQuery: query => {
+				for(const instance of this.instances) {
+					instance.receiveQuery(query);
+				}
+			},
+
+			onResponse: response => {
+				for(const instance of this.instances) {
+					instance.receiveResponse(response);
+				}
 			}
 		});
 
@@ -141,63 +145,28 @@ export class Manager {
 		if(idx < 0) return;
 
 		this.instances.splice(idx, 1);
-		if(this.instances.length === 0 && this.mdns) {
-			this.mdns.destroy();
-			this.mdns = undefined;
+		if(this.instances.length === 0 && this.transport) {
+			this.transport.destroy();
+			this.transport = undefined;
 
 			clearInterval(this.recordExpirerInterval);
 		}
 	}
 
-	public query(name: string, type: string) {
-		if(! this.mdns) {
-			throw new Error('No mDNS instance available');
+	public async query(query: MDNSQuery): Promise<void> {
+		if(! this.transport) {
+			throw new Error('No mDNS transport instance available');
 		}
 
-		const query = {
-			questions: [{
-				name: name,
-				type: type,
-				class: 'IN'
-			}]
-		};
-
-		return new Promise((resolve, reject) => {
-			if(! this.mdns) {
-				reject(new Error('No mDNS instance available'));
-				return;
-			}
-
-			this.mdns.query(query, (err) => {
-				if(err) {
-					reject(err);
-				}
-
-				resolve();
-			});
-		});
+		return await this.transport.query(query);
 	}
 
-	public respond(answers: Record[], additionals: Record[]) {
-		const packet = {
-			answers: answers.map(r => r.toAnswer()),
-			additionals: additionals.map(r => r.toAnswer())
-		};
+	public async respond(response: MDNSResponse): Promise<void> {
+		if(! this.transport) {
+			throw new Error('No mDNS transport instance available');
+		}
 
-		return new Promise((resolve, reject) => {
-			if(! this.mdns) {
-				reject(new Error('No mDNS instance available'));
-				return;
-			}
-
-			this.mdns.respond(packet, (err) => {
-				if(err) {
-					reject(err);
-				}
-
-				resolve();
-			});
-		});
+		return this.transport.respond(response);
 	}
 
 	public find(predicate: (record: Record) => boolean): Record | undefined {

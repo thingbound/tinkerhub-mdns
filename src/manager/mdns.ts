@@ -32,12 +32,12 @@ export class MDNS {
 		return this.errorEvent.subscribable;
 	}
 
-	public query(name: string, type: string) {
-		return this.manager.query(name, type);
+	public query(query: MDNSQuery) {
+		return this.manager.query(query);
 	}
 
-	public respond(answers: Record[], additionals: Record[]=[]) {
-		return this.manager.respond(answers, additionals);
+	public respond(response: MDNSResponse) {
+		return this.manager.respond(response);
 	}
 
 	public destroy() {

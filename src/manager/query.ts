@@ -1,19 +1,26 @@
-import { Packet, Answer, Question } from 'multicast-dns';
 import { AddressInfo } from 'dgram';
 
 import { AbstractPacket } from './abstract-packet';
 import { Record } from './records';
 
+export interface Question {
+	name: string;
+
+	type: string;
+
+	class?: string;
+}
+
 export class MDNSQuery extends AbstractPacket {
 	public readonly questions: Question[];
 
 	constructor(
-		packet: Packet,
-		rinfo: AddressInfo,
-		mapper: (answer: Answer) => Record | null
+		questions: Question[],
+		answers: Record[]=[],
+		additionals: Record[]=[]
 	) {
-		super(packet, rinfo, mapper);
+		super(answers, additionals);
 
-		this.questions = packet.questions || [];
+		this.questions = questions;
 	}
 }

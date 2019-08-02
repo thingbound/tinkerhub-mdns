@@ -17,10 +17,7 @@
 		"emitDecoratorMetadata": true,
 
 		"declarationDir": "dist/types",
-		"outDir": "dist/lib",
-		"typeRoots": [
-			"node_modules/@types"
-		]
+		"outDir": "dist/lib"
 	},
 	"include": [
 		"src"

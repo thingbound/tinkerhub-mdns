@@ -110,7 +110,15 @@ export class MDNSServiceDiscovery extends BasicServiceDiscovery<MDNSService> {
 		}
 
 		this.searchLastInvoke = now;
-		this.mdns.query(this.searchName, 'PTR')
+
+		const query = new MDNSQuery([
+			{
+				type: 'PTR',
+				name: this.searchName
+			}
+		]);
+
+		this.mdns.query(query)
 			.catch(err => this.logAndEmitError(err, 'Caught error during search'));
 
 		if(periodical) {

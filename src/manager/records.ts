@@ -1,25 +1,16 @@
-import { Answer } from 'multicast-dns';
-import fastDeepEqual from 'fast-deep-equal';
-import { decodeTXT } from './txt';
 import { Event, Subscribable } from 'atvik';
 
-export type AnswerWithoutType = Omit<Answer, 'type'>;
+import fastDeepEqual from 'fast-deep-equal';
+import { decodeTXT } from './txt';
 
-export function mapAnswer(answer: Answer): Record {
-	switch(answer.type) {
-		case 'A':
-			return new ARecord(answer);
-		case 'AAAA':
-			return new AAAARecord(answer);
-		case 'TXT':
-			return new TXTRecord(answer);
-		case 'SRV':
-			return new SRVRecord(answer);
-		case 'PTR':
-			return new PTRRecord(answer);
-		default:
-			return new UnknownRecord(answer);
-	}
+export interface RecordData {
+	name: string;
+
+	class?: string;
+
+	flush?: boolean;
+
+	ttl?: number;
 }
 
 export abstract class Record {
@@ -35,11 +26,11 @@ export abstract class Record {
 	public lastRefresh: number;
 	public ttl?: number;
 
-	constructor(answer: AnswerWithoutType) {
-		this.name = answer.name || '';
-		this.class = answer.class || 'IN';
-		this.flush = answer.flush || false;
-		this.ttl = answer.ttl;
+	constructor(data: RecordData) {
+		this.name = data.name || '';
+		this.class = data.class || 'IN';
+		this.flush = data.flush || false;
+		this.ttl = data.ttl;
 		this.lastRefresh = Date.now();
 
 		this.expireEvent = new Event<Record>(this);
@@ -55,6 +46,13 @@ export abstract class Record {
 		this.lastRefresh = Date.now();
 
 		this.refreshEvent.emit();
+	}
+
+	get remainingTTL() {
+		if(! this.ttl) return undefined;
+
+		const passedTTL = Math.floor((Date.now() - this.lastRefresh) / 1000);
+		return this.ttl - passedTTL;
 	}
 
 	get onExpire(): Subscribable<Record> {
@@ -78,19 +76,6 @@ export abstract class Record {
 	}
 
 	protected abstract isDataEqual(other: this): boolean;
-
-	public toAnswer(): Answer {
-		return {
-			type: this.type,
-			name: this.name,
-			ttl: this.ttl,
-			class: this.class,
-			flush: this.flush,
-			data: this.toData()
-		};
-	}
-
-	protected abstract toData(): any;
 }
 
 export class ARecord extends Record {
@@ -98,18 +83,14 @@ export class ARecord extends Record {
 
 	public readonly ip: string;
 
-	constructor(answer: AnswerWithoutType) {
-		super(answer);
+	constructor(record: RecordData & { ip: string }) {
+		super(record);
 
-		this.ip = answer.data;
+		this.ip = record.ip;
 	}
 
 	protected isDataEqual(other: this) {
 		return this.ip === other.ip;
-	}
-
-	protected toData() {
-		return this.ip;
 	}
 }
 
@@ -118,18 +99,14 @@ export class AAAARecord extends Record {
 
 	public readonly ip: string;
 
-	constructor(answer: AnswerWithoutType) {
-		super(answer);
+	constructor(data: RecordData & { ip: string }) {
+		super(data);
 
-		this.ip = answer.data;
+		this.ip = data.ip;
 	}
 
 	protected isDataEqual(other: this) {
 		return this.ip === other.ip;
-	}
-
-	protected toData() {
-		return this.ip;
 	}
 }
 
@@ -139,22 +116,15 @@ export class SRVRecord extends Record {
 	public readonly target: string;
 	public readonly port: number;
 
-	constructor(answer: AnswerWithoutType) {
-		super(answer);
+	constructor(data: RecordData & { target: string, port: number }) {
+		super(data);
 
-		this.target = answer.data.target;
-		this.port = answer.data.port;
+		this.target = data.target;
+		this.port = data.port;
 	}
 
 	protected isDataEqual(other: this) {
 		return this.target === other.target && this.port === other.port;
-	}
-
-	protected toData() {
-		return {
-			target: this.target,
-			port: this.port
-		};
 	}
 }
 
@@ -163,10 +133,10 @@ export class PTRRecord extends Record {
 
 	public readonly hostname: string;
 
-	constructor(answer: AnswerWithoutType) {
-		super(answer);
+	constructor(data: RecordData & { hostname: string }) {
+		super(data);
 
-		this.hostname = answer.data;
+		this.hostname = data.hostname;
 	}
 
 	protected isDataEqual(other: this) {
@@ -184,12 +154,12 @@ export class TXTRecord extends Record {
 	public readonly data: Map<string, string | boolean>;
 	public readonly binaryData: Buffer[];
 
-	constructor(answer: AnswerWithoutType, decode=true) {
-		super(answer);
+	constructor(data: RecordData & { data: Buffer[], decode: boolean }) {
+		super(data);
 
-		this.binaryData = answer.data;
+		this.binaryData = data.data;
 		this.data = new Map();
-		if(decode) {
+		if(data.decode) {
 			for(const b of this.binaryData) {
 				const decoded = decodeTXT(b);
 				if(decoded) {
@@ -212,11 +182,11 @@ export class UnknownRecord extends Record {
 	public readonly type: string;
 	public readonly data: any;
 
-	constructor(answer: Answer) {
-		super(answer);
+	constructor(data: RecordData & { type: string, data: any }) {
+		super(data);
 
-		this.type = answer.type;
-		this.data = answer.data;
+		this.type = data.type;
+		this.data = data.data;
 	}
 
 	protected isDataEqual(other: this) {

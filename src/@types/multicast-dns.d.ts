@@ -43,15 +43,15 @@ declare module 'multicast-dns' {
 	export interface Question {
 		name: string;
 		type: string;
-		class: string;
+		class?: string;
 	}
 
 	export interface Answer {
-		name?: string;
+		name: string;
 		type: string;
-		class?: string;
+		class: string;
 		ttl?: number;
-		flush?: boolean;
+		flush: boolean;
 		data: any;
 	}
 }

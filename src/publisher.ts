@@ -3,7 +3,7 @@ import { hostname, networkInterfaces } from 'os';
 import { AbstractServicePublisher } from 'tinkerhub-discovery';
 import { stringify } from 'multicast-dns-service-types';
 
-import { createMDNS, MDNS, Record, PTRRecord, SRVRecord, ARecord, AAAARecord, MDNSQuery } from './manager';
+import { createMDNS, MDNS, Record, PTRRecord, SRVRecord, ARecord, AAAARecord, MDNSQuery, MDNSResponse } from './manager';
 import { Protocol } from './protocol';
 import { randomId } from './id';
 
@@ -143,8 +143,9 @@ export class MDNSServicePublisher extends AbstractServicePublisher {
 			new PTRRecord({
 				name: isAny ? ANY_TYPE : this.type,
 				ttl: this.ttl,
-				data: this.qualifiedName,
-				flush: false
+				flush: false,
+
+				hostname: this.qualifiedName
 			})
 		];
 
@@ -154,10 +155,9 @@ export class MDNSServicePublisher extends AbstractServicePublisher {
 				name: this.qualifiedName,
 				ttl: this.ttl,
 				flush: true,
-				data: {
-					port: this.port,
-					target: host,
-				}
+
+				target: host,
+				port: this.port
 			})
 		];
 
@@ -173,7 +173,8 @@ export class MDNSServicePublisher extends AbstractServicePublisher {
 							name: host,
 							ttl: this.ttl,
 							flush: true,
-							data: address.address
+
+							ip: address.address
 						}));
 						break;
 					case 'IPv6':
@@ -181,14 +182,15 @@ export class MDNSServicePublisher extends AbstractServicePublisher {
 							name: host,
 							ttl: this.ttl,
 							flush: true,
-							data: address.address
+
+							ip: address.address
 						}));
 						break;
 				}
 			}
 		}
 
-		this.mdns.respond(answers, additionals);
+		this.mdns.respond(new MDNSResponse(answers, additionals));
 	}
 
 	public async destroy(): Promise<void> {
@@ -215,12 +217,13 @@ export class MDNSServicePublisher extends AbstractServicePublisher {
 	}
 
 	private sendGoodbye() {
-		return this.mdns.respond([
+		return this.mdns.respond(new MDNSResponse([
 			new PTRRecord({
 				name: this.type,
 				ttl: 0,
-				data: this.qualifiedName
+
+				hostname: this.qualifiedName
 			})
-		]);
+		]));
 	}
 }
