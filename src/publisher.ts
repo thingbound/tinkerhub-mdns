@@ -106,11 +106,41 @@ export class MDNSServicePublisher extends AbstractServicePublisher {
 			if(question.type !== 'PTR') continue;
 
 			if(question.name === ANY_TYPE) {
-				this.announce(true);
+				if(! this.hasService(query.answers)) {
+					this.announce(true);
+				}
 			} else if(question.name === this.type) {
-				this.announce(false);
+				if(! this.hasService(query.answers)) {
+					this.announce(false);
+				}
 			}
 		}
+	}
+
+	/**
+	 * Go through known services and check if the querier knows about this
+	 * service.
+	 *
+	 * The following must match:
+	 * 1) The record must be a PTR
+	 * 2) The name of the record must match our type
+	 * 3) The hostname must match our qualified name
+	 * 4) The TTL must be more than half the original value
+	 *
+	 * @param answers
+	 */
+	private hasService(answers: Record[]) {
+		for(const answer of answers) {
+			if(answer instanceof PTRRecord
+				&& answer.name === this.type
+				&& answer.hostname === this.qualifiedName
+				&& (answer.ttl && answer.ttl > this.ttl / 2)
+			) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public broadcast() {
