@@ -35,7 +35,7 @@ export class MulticastDNSTransport extends AbstractTransport {
 				this.fromTransportsRecords(packet.additionals || [])
 			);
 
-			this.onResponse(response);
+			this.onQuery(response);
 		});
 	}
 
